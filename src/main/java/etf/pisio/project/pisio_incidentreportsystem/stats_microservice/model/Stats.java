@@ -7,9 +7,8 @@ import java.util.List;
 public class Stats {
     private long count;
     private long approved;
-    private int approvedPercentage;
+    private double approvedPercentage;
     private List<StatsPerType> reportsPerType;
-    private List<StatsPerInterval> dataPerInterval;
-    private double reportsPerInterval;
-    private double approvedPerInterval;
+    private List<StatsPerDay> dataPerDay;
+    private double avgPerDay;
 }

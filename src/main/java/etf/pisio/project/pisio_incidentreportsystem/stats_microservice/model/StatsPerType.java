@@ -4,4 +4,7 @@ import lombok.Data;
 
 @Data
 public class StatsPerType {
+    private String type;
+    private long count;
+    private double percentage;
 }
