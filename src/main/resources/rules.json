@@ -1,0 +1,84 @@
+{
+  "rules": [
+    {
+      "methods": [
+      ],
+      "pattern": "/events/**",
+      "roles": [
+        "CITY_OFFICIAL","CITY_MANAGER"
+      ]
+    },
+    {
+      "methods": ["GET"
+      ],
+      "pattern": "/statistics/**",
+      "roles": [
+        "CITY_MANAGER"
+      ]
+    },
+    {
+      "methods": ["POST"
+      ],
+      "pattern": "/reports",
+      "roles": [
+        "CITIZEN","CITY_OFFICIAL","CITY_MANAGER"
+      ]
+    },
+    {
+      "methods": ["POST"
+      ],
+      "pattern": "/reports/images/upload",
+      "roles": [
+        "CITIZEN","CITY_OFFICIAL","CITY_MANAGER"
+      ]
+    },
+    {
+      "methods": ["PUT"
+      ],
+      "pattern": "/reports/feedback/*",
+      "roles": [
+        "CITY_OFFICIAL"
+      ]
+    },
+    {
+      "methods": ["PUT"
+      ],
+      "pattern": "/reports/requireInfo/*",
+      "roles": [
+        "CITY_OFFICIAL"
+      ]
+    },
+    {
+      "methods": ["PUT"
+      ],
+      "pattern": "/reports/additionalInfo/*",
+      "roles": [
+        "CITIZEN","CITY_OFFICIAL","CITY_MANAGER"
+      ]
+    },
+    {
+      "methods": ["GET"
+      ],
+      "pattern": "/reports/author/*",
+      "roles": [
+        "CITIZEN","CITY_OFFICIAL","CITY_MANAGER"
+      ]
+    },
+    {
+      "methods": ["DELETE"
+      ],
+      "pattern": "/reports/images/*",
+      "roles": [
+        "CITIZEN","CITY_OFFICIAL","CITY_MANAGER"
+      ]
+    },
+    {
+      "methods": ["GET"
+      ],
+      "pattern": "/**",
+      "roles": [
+        "CITY_OFFICIAL"
+      ]
+    }
+  ]
+}

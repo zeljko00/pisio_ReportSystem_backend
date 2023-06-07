@@ -1,12 +1,17 @@
 package etf.pisio.project.pisio_incidentreportsystem.report_microservice.controllers;
 
 import etf.pisio.project.pisio_incidentreportsystem.report_microservice.DTO.ReportDTO;
+import etf.pisio.project.pisio_incidentreportsystem.report_microservice.DTO.ReportTypeDTO;
 import etf.pisio.project.pisio_incidentreportsystem.report_microservice.services.ReportService;
 import jakarta.websocket.server.PathParam;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,12 +25,16 @@ public class ReportController {
     }
 
     @GetMapping
-    ResponseEntity<List<ReportDTO>> getApprovedReports(@PathParam("dateExp") String dateExp, @PathParam("address") String address, @PathParam("type") String type, @PathParam("subtype") String subtype, @PathParam("x") Double x, @PathParam("y") Double y, @PathParam("radius") Double radius){
-        return new ResponseEntity<>(reportService.find(true,dateExp,type,subtype,address,x,y,radius),HttpStatus.OK);
+    ResponseEntity<List<ReportDTO>> getApprovedReports(@PathParam("dateExp") String dateExp, @PathParam("address") String address, @PathParam("type") String type, @PathParam("subtype") String subtype){
+        return new ResponseEntity<>(reportService.find(true,dateExp,type,subtype,address),HttpStatus.OK);
     }
     @GetMapping("/queue")
-    ResponseEntity<List<ReportDTO>> getReports(@PathParam("approval") Boolean approval,@PathParam("dateExp") String dateExp, @PathParam("address") String address, @PathParam("type") String type, @PathParam("subtype") String subtype, @PathParam("x") Double x, @PathParam("y") Double y, @PathParam("radius") Double radius){
-        return new ResponseEntity<>(reportService.find(approval,dateExp,type,subtype,address,x,y,radius),HttpStatus.OK);
+    ResponseEntity<List<ReportDTO>> getReports(@PathParam("approval") Boolean approval,@PathParam("dateExp") String dateExp, @PathParam("address") String address, @PathParam("type") String type, @PathParam("subtype") String subtype){
+        return new ResponseEntity<>(reportService.find(approval,dateExp,type,subtype,address),HttpStatus.OK);
+    }
+    @GetMapping("/types")
+    ResponseEntity<List<ReportTypeDTO>> getReportTypes(){
+        return new ResponseEntity<>(reportService.getTypes(),HttpStatus.OK);
     }
 
     @DeleteMapping("/{id}")
@@ -50,6 +59,23 @@ public class ReportController {
         Optional<ReportDTO> opt=reportService.create(report);
         if(opt.isPresent())
             return new ResponseEntity<>(opt.get(),HttpStatus.OK);
+        else
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+    }
+    @PostMapping("/images/upload")
+    public void uploadImage(@RequestParam("image") MultipartFile file, @RequestParam("identificator") String id) throws IOException {
+        reportService.saveImage(file.getBytes(),id);
+    }
+    @DeleteMapping("/images/{id}")
+    public ResponseEntity<?> deleteReportImageById(@PathVariable("id") String id){
+        reportService.deleteImage(id);
+        return new ResponseEntity<>(HttpStatus.OK);
+    }
+    @GetMapping(path="/images/{id}", produces = MediaType.IMAGE_JPEG_VALUE)
+    public ResponseEntity<?> getReportImageById(@PathVariable("id") long id){
+        byte[] result=reportService.getImageById(id);
+        if(result!=null)
+            return new ResponseEntity<>(result,HttpStatus.OK);
         else
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
     }

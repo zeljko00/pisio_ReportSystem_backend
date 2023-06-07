@@ -2,15 +2,12 @@ package etf.pisio.project.pisio_incidentreportsystem.report_microservice.service
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import etf.pisio.project.pisio_incidentreportsystem.report_microservice.DAO.CoordinateDAO;
 import etf.pisio.project.pisio_incidentreportsystem.report_microservice.DAO.ReportDAO;
+import etf.pisio.project.pisio_incidentreportsystem.report_microservice.DAO.ReportImageDAO;
 import etf.pisio.project.pisio_incidentreportsystem.report_microservice.DAO.ReportTypeDAO;
-import etf.pisio.project.pisio_incidentreportsystem.report_microservice.DTO.CoordinateDTO;
 import etf.pisio.project.pisio_incidentreportsystem.report_microservice.DTO.ReportDTO;
-import etf.pisio.project.pisio_incidentreportsystem.report_microservice.model.Coordinate;
-import etf.pisio.project.pisio_incidentreportsystem.report_microservice.model.Report;
-import etf.pisio.project.pisio_incidentreportsystem.report_microservice.model.ReportType;
-import etf.pisio.project.pisio_incidentreportsystem.report_microservice.model.Subtype;
+import etf.pisio.project.pisio_incidentreportsystem.report_microservice.DTO.ReportTypeDTO;
+import etf.pisio.project.pisio_incidentreportsystem.report_microservice.model.*;
 import etf.pisio.project.pisio_incidentreportsystem.report_microservice.services.ImageService;
 import etf.pisio.project.pisio_incidentreportsystem.report_microservice.services.ReportService;
 import jakarta.transaction.Transactional;
@@ -21,10 +18,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -32,7 +26,7 @@ import java.util.stream.Collectors;
 public class ReportServiceImpl implements ReportService {
     private final ReportDAO reportDAO;
     private final ReportTypeDAO reportTypeDAO;
-    private final CoordinateDAO coordinateDAO;
+    private final ReportImageDAO reportImageDAO;
     private ImageService imageService;
     private final ModelMapper modelMapper;
 
@@ -41,13 +35,14 @@ public class ReportServiceImpl implements ReportService {
     private final static String LAST_WEEK = "7d";
     private final static String LAST_MONTH = "31d";
     private final static String LAST_HALF_YEAR = "6m";
-
     private final static String GEOCODING_SERVICE_REQUEST_TEMPLATE = "https://api.opencagedata.com/geocode/v1/json?q=LAT+LNG&key=38be49d94e0f42f9af17d878e8c78303";
 
-    public ReportServiceImpl(ReportDAO reportDAO, ReportTypeDAO reportTypeDAO, CoordinateDAO coordinateDAO, ImageService imageService, ModelMapper modelMapper) {
+    private HashMap<String, List<Tuple>> uploadedImages = new HashMap<String, List<Tuple>>();
+
+    public ReportServiceImpl(ReportDAO reportDAO, ReportTypeDAO reportTypeDAO, ReportImageDAO reportImageDAO, ImageService imageService, ModelMapper modelMapper) {
         this.reportDAO = reportDAO;
         this.reportTypeDAO = reportTypeDAO;
-        this.coordinateDAO = coordinateDAO;
+        this.reportImageDAO = reportImageDAO;
         this.imageService = imageService;
         this.modelMapper = modelMapper;
     }
@@ -69,15 +64,12 @@ public class ReportServiceImpl implements ReportService {
         } else return false;
     }
 
-    public List<ReportDTO> find(Boolean approved, String dateExp, String type, String subtype, String address, Double x, Double y, Double radius) {
+    public List<ReportDTO> find(Boolean approved, String dateExp, String type, String subtype, String address) {
         System.out.println(approved);
         System.out.println(dateExp);
         System.out.println(type);
         System.out.println(subtype);
         System.out.println(address);
-        System.out.println(x);
-        System.out.println(y);
-        System.out.println(radius);
 
         Date date = null;
 
@@ -104,24 +96,22 @@ public class ReportServiceImpl implements ReportService {
 
             }
         }
-        List<Report> entities = reportDAO.findReportsByApproval(approved, date, type, subtype, address, x, y, radius);
+        if(type!=null)
+            type+="%";
+        if(subtype!=null)
+            subtype="%"+subtype;
+        List<Report> entities = reportDAO.findReportsByApproval(approved, date, type, subtype, address);
         return entities.stream().map(r -> {
             ReportDTO dto = modelMapper.map(r, ReportDTO.class);
             dto.setImagesIDs(r.getImages().stream().map(i -> {
                 return i.getId();
-            }).collect(Collectors.toList()));
-            dto.setCoordinateDTOs(r.getCoordinates().stream().map(c -> {
-                return modelMapper.map(c, CoordinateDTO.class);
             }).collect(Collectors.toList()));
             return dto;
         }).collect(Collectors.toList());
     }
 
     public Optional<ReportDTO> create(ReportDTO report) {
-        if(report.getCoordinateDTOs()!=null && report.getCoordinateDTOs().size()>0){
-            report.setY(report.getCoordinateDTOs().stream().map(c->{return c.getY();}).reduce(0.0,(y1,y2)->{return y1+y2;})/report.getCoordinateDTOs().size());
-            report.setX(report.getCoordinateDTOs().stream().map(c->{return c.getX();}).reduce(0.0,(x1,x2)->{return x1+x2;})/report.getCoordinateDTOs().size());
-        }
+        long tempId=report.getId();
 
         String type = "";
         String subtype = "";
@@ -164,16 +154,31 @@ public class ReportServiceImpl implements ReportService {
 
                 //fotografije
 
+
+                System.out.println("Report tempId: "+tempId);
+
+                report.setId(-1l);
                 Report entity = modelMapper.map(report, Report.class);
-                List<Coordinate> coords = report.getCoordinateDTOs().stream().map(c -> {
-                    return modelMapper.map(c, Coordinate.class);
-                }).collect(Collectors.toList());
-                entity.setCoordinates(coords);
                 Report result = reportDAO.saveAndFlush(entity);
-                coords.stream().forEach(c -> {
-                    c.setReport(result);
-                    coordinateDAO.saveAndFlush(c);
-                });
+
+                synchronized (uploadedImages) {
+                    if (uploadedImages.get(Long.toString(tempId)) != null) {
+                        System.out.println("Images exist!");
+                        List<Tuple> images = uploadedImages.get(Long.toString(tempId));
+                        uploadedImages.remove(Long.toString(tempId));
+                        int count = 1;
+                        for (Tuple t : images) {
+                            ReportImage reportImage = new ReportImage();
+                            reportImage.setReport(result);
+                            System.out.println(t.getId());
+                            reportImageDAO.saveAndFlush(reportImage);
+
+                            //prosljedjivanje fotografiej ka min.io
+
+                        }
+                    } else
+                        System.out.println("no images");
+                }
 
                 report.setId(result.getId());
                 return Optional.of(report);
@@ -182,4 +187,60 @@ public class ReportServiceImpl implements ReportService {
         } else
             return Optional.empty();
     }
+    public List<ReportTypeDTO> getTypes(){
+        return reportTypeDAO.findAll().stream().map(rt -> {
+            ReportTypeDTO dto=new ReportTypeDTO();
+            dto.setName(rt.getName());
+            dto.setSubtypes(rt.getSubtypes().stream().map(st -> st.getName()).collect(Collectors.toList()));
+            return dto;
+        }).collect(Collectors.toList());
+    }
+
+    public boolean saveImage(byte[] data, String id) {
+        try {
+            String[] tokens = id.split("--");
+            String random = tokens[0];
+            System.out.println("Image tempId: "+random);
+            synchronized (uploadedImages) {
+                if (!uploadedImages.containsKey(random))
+                    uploadedImages.put(random, new ArrayList<Tuple>());
+                Tuple temp = new Tuple();
+                temp.setId(tokens[1]);
+                temp.setData(data);
+                uploadedImages.get(random).add(temp);
+            }
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    public void deleteImage(String id) {
+        try {
+            String[] tokens = id.split("--");
+            String random = tokens[0];;
+            synchronized (uploadedImages) {
+                List<Tuple> imgs = uploadedImages.get(random);
+                Tuple toDelete = null;
+                for (Tuple t : imgs)
+                    if (t.getId().equals(tokens[1]))
+                        toDelete = t;
+                imgs.remove(toDelete);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    public byte[] getImageById(long id){
+        try{
+            //minio
+            byte[] result=null;
+            return result;
+        }catch(Exception e){
+            e.printStackTrace();
+            return null;
+        }
+    }
+
 }

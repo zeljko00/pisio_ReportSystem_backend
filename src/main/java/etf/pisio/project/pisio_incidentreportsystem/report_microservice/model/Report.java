@@ -21,6 +21,4 @@ public class Report {
     private double y;
     @OneToMany (mappedBy = "report", fetch=FetchType.LAZY)
     private List<ReportImage> images;
-    @OneToMany (mappedBy = "report", fetch=FetchType.LAZY)
-    private List<Coordinate> coordinates;
 }
