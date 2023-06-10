@@ -39,6 +39,7 @@ public class ReportController {
 
     @DeleteMapping("/{id}")
     ResponseEntity<?> delete(@PathVariable("id") long id){
+        System.out.println("deleting report with id "+id);
         boolean flag=reportService.delete(id);
         if(flag)
             return new ResponseEntity<>(HttpStatus.OK);

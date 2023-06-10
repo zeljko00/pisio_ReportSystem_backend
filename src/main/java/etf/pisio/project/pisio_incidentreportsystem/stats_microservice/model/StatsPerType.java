@@ -6,5 +6,7 @@ import lombok.Data;
 public class StatsPerType {
     private String type;
     private long count;
+    private long approved;
     private double percentage;
+
 }

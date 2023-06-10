@@ -20,18 +20,22 @@ import java.util.stream.Collectors;
 @Service
 public class StatsServiceImpl implements StatsService {
     public Stats getStats(List<ReportDTO> reports){
-        if(reports==null || reports.size()<1)
+        if(reports==null)
             return null;
         Stats stats=new Stats();
         stats.setCount(reports.size());
         stats.setApproved(reports.stream().filter(r -> r.isApproved()).count());
-        stats.setApprovedPercentage(stats.getApproved()/stats.getCount());
+        if(stats.getCount()!=0)
+            stats.setApprovedPercentage(stats.getApproved()/(double)stats.getCount());
+        else
+            stats.setApprovedPercentage(0);
         stats.setReportsPerType(new ArrayList<>());
         stats.setDataPerDay(new ArrayList<>());
         reports.stream().collect(Collectors.groupingBy(r -> r.getType())).entrySet().stream().forEach(entry -> {
             StatsPerType statsPerType=new StatsPerType();
             statsPerType.setType(entry.getKey());
             statsPerType.setCount(entry.getValue().size());
+            statsPerType.setApproved(entry.getValue().stream().filter(r -> r.isApproved()).count());
             statsPerType.setPercentage(statsPerType.getCount()/(double)stats.getCount());
             stats.getReportsPerType().add(statsPerType);
         });
@@ -46,8 +50,9 @@ public class StatsServiceImpl implements StatsService {
             Date start=reports.stream().map(r -> {return r.getDate();}).max((d1, d2) -> {return d1.compareTo(d2);}).get();
             Date end=reports.stream().map(r -> {return r.getDate();}).min((d1, d2) -> {return d1.compareTo(d2);}).get();
             long days= TimeUnit.DAYS.convert(Math.abs(end.getTime()-start.getTime()), TimeUnit.MILLISECONDS);
-            if(days!=0)
-                stats.setAvgPerDay(stats.getCount()/(double)days);
+            if(days==0)
+                days=1;
+            stats.setAvgPerDay(stats.getCount()/(double)days);
         }catch (Exception e){e.printStackTrace();}
         return stats;
     }

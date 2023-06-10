@@ -51,6 +51,7 @@ public class ReportServiceImpl implements ReportService {
         Optional<Report> opt = reportDAO.findById(id);
         if (opt.isPresent()) {
             Report report = opt.get();
+            System.out.println("Changing report "+id+" state to "+approved);
             report.setApproved(approved);
             reportDAO.saveAndFlush(report);
             return true;
