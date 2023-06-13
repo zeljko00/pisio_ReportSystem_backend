@@ -21,12 +21,13 @@ public class AnomalyDetectionController {
         this.anomalyDetectionService = anomalyDetectionService;
     }
     @PostMapping
-    ResponseEntity<List<WarningDTO>> search(@RequestBody ReportInfoDTO report){
-        return new ResponseEntity<List<WarningDTO>>(anomalyDetectionService.searchForAnomalies(report), HttpStatus.OK);
+    ResponseEntity<?> addReport(@RequestBody ReportInfoDTO report){
+        anomalyDetectionService.addReport(report);
+        return new ResponseEntity<>(HttpStatus.OK);
     }
 
     @GetMapping
-    public ResponseEntity<List<WarningDTO>> history(@PathParam("period") String period){
-        return new ResponseEntity<>(anomalyDetectionService.history(period),HttpStatus.OK);
+    public ResponseEntity<List<WarningDTO>> search(){
+        return new ResponseEntity<>(anomalyDetectionService.searchForAnomalies(),HttpStatus.OK);
     }
 }

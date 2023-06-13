@@ -10,5 +10,6 @@ public class Stats {
     private double approvedPercentage;
     private List<StatsPerType> reportsPerType;
     private List<StatsPerDay> dataPerDay;
+    private List<StatsPerAddress> dataPerAddress;
     private double avgPerDay;
 }

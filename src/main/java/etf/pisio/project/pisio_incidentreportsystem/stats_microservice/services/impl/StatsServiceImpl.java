@@ -2,6 +2,7 @@ package etf.pisio.project.pisio_incidentreportsystem.stats_microservice.services
 
 import etf.pisio.project.pisio_incidentreportsystem.stats_microservice.DTO.ReportDTO;
 import etf.pisio.project.pisio_incidentreportsystem.stats_microservice.model.Stats;
+import etf.pisio.project.pisio_incidentreportsystem.stats_microservice.model.StatsPerAddress;
 import etf.pisio.project.pisio_incidentreportsystem.stats_microservice.model.StatsPerDay;
 import etf.pisio.project.pisio_incidentreportsystem.stats_microservice.model.StatsPerType;
 import etf.pisio.project.pisio_incidentreportsystem.stats_microservice.services.StatsService;
@@ -31,6 +32,7 @@ public class StatsServiceImpl implements StatsService {
             stats.setApprovedPercentage(0);
         stats.setReportsPerType(new ArrayList<>());
         stats.setDataPerDay(new ArrayList<>());
+        stats.setDataPerAddress(new ArrayList<>());
         reports.stream().collect(Collectors.groupingBy(r -> r.getType())).entrySet().stream().forEach(entry -> {
             StatsPerType statsPerType=new StatsPerType();
             statsPerType.setType(entry.getKey());
@@ -45,6 +47,13 @@ public class StatsServiceImpl implements StatsService {
             statsPerDay.setDate(entry.getKey());
             statsPerDay.setCount(entry.getValue().size());
             stats.getDataPerDay().add(statsPerDay);
+        });
+        reports.stream().collect(Collectors.groupingBy(r -> r.getAddress())).entrySet().stream().sorted((e1,e2)-> {return e2.getValue().size()-e1.getValue().size();}).limit(4).forEach(entry -> {
+            StatsPerAddress statsPerAddress=new StatsPerAddress();
+            statsPerAddress.setAddress(entry.getKey());
+            statsPerAddress.setCount(entry.getValue().size());
+            statsPerAddress.setApproved(entry.getValue().stream().filter(i -> i.isApproved()).count());
+            stats.getDataPerAddress().add(statsPerAddress);
         });
         try{
             Date start=reports.stream().map(r -> {return r.getDate();}).max((d1, d2) -> {return d1.compareTo(d2);}).get();

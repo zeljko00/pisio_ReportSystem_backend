@@ -5,8 +5,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.Date;
+import java.util.*;
 
 @Repository
 public interface ReportInfoDAO extends JpaRepository<ReportInfo,Long> {
-    void deleteReportInfoByDateBefore(Date date);
+    List<ReportInfo> findAllByDateAfter(Date date);
 }

@@ -43,6 +43,8 @@ public class WebSecurityConfiguration{
                 .and()
                 .authorizeHttpRequests()
                 .requestMatchers(HttpMethod.POST,"/auth/login").permitAll()
+                .requestMatchers(HttpMethod.POST,"/anomaly_detection").permitAll()
+                .requestMatchers(HttpMethod.GET,"/reports/images/*").permitAll()
                 .anyRequest().authenticated();
 
 //        http=createAuthorizationRules(http);

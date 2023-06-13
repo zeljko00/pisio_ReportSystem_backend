@@ -7,6 +7,7 @@ import etf.pisio.project.pisio_incidentreportsystem.anomaly_detection_microservi
 
 import java.util.List;
 public interface AnomalyDetectionService {
-    List<WarningDTO> searchForAnomalies(ReportInfoDTO reportDTO);
-    List<WarningDTO> history(String period);
+    List<WarningDTO> searchForAnomalies();
+    void detect(ReportInfoDTO reportInfoDTO);
+    void addReport(ReportInfoDTO reportInfoDTO);
 }

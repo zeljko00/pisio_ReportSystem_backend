@@ -9,5 +9,5 @@ import java.util.Date;
 import java.util.List;
 @Repository
 public interface WarningDAO extends JpaRepository<Warning,Long> {
-    List<Warning> findWarningsByDateBefore(Date date);
+    List<Warning> findWarningsByDateAfter(Date date);
 }

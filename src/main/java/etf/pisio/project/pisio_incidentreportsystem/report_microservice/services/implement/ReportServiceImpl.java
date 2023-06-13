@@ -2,33 +2,55 @@ package etf.pisio.project.pisio_incidentreportsystem.report_microservice.service
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import etf.pisio.project.pisio_incidentreportsystem.report_microservice.DAO.ReportDAO;
 import etf.pisio.project.pisio_incidentreportsystem.report_microservice.DAO.ReportImageDAO;
 import etf.pisio.project.pisio_incidentreportsystem.report_microservice.DAO.ReportTypeDAO;
 import etf.pisio.project.pisio_incidentreportsystem.report_microservice.DTO.ReportDTO;
+import etf.pisio.project.pisio_incidentreportsystem.report_microservice.DTO.ReportInfoDTO;
 import etf.pisio.project.pisio_incidentreportsystem.report_microservice.DTO.ReportTypeDTO;
 import etf.pisio.project.pisio_incidentreportsystem.report_microservice.model.*;
-import etf.pisio.project.pisio_incidentreportsystem.report_microservice.services.ImageService;
 import etf.pisio.project.pisio_incidentreportsystem.report_microservice.services.ReportService;
+import io.minio.GetObjectArgs;
+import io.minio.MinioClient;
+import io.minio.PutObjectArgs;
+import io.minio.RemoveObjectArgs;
 import jakarta.transaction.Transactional;
 import org.modelmapper.ModelMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
 @Transactional
 public class ReportServiceImpl implements ReportService {
+    private final MinioClient minioClient =
+            MinioClient.builder()
+                    .endpoint("http://localhost:9000")
+                    .credentials("V6SgTLZ89DgBGh2YYCDT", "b23RAKpvw1iYtXzjFQm4SBCrY4OoQcgZNlla2gCW")
+                    .build();
+    private final Gson gson=new GsonBuilder()
+                .setDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'") //
+                .create();
+    private final HttpClient httpClient = HttpClient.newBuilder().build();
     private final ReportDAO reportDAO;
     private final ReportTypeDAO reportTypeDAO;
     private final ReportImageDAO reportImageDAO;
-    private ImageService imageService;
     private final ModelMapper modelMapper;
+    @Value("${reports.images.temp.repo}")
+    private String imagesRepo;
+    private static final String BUCKET = "images";
+    private static final String CONTENT_TYPE = "image/jpeg";
 
     private final static String subtype_regex = " - ";
     private final static String LAST_DAY = "24h";
@@ -39,11 +61,10 @@ public class ReportServiceImpl implements ReportService {
 
     private HashMap<String, List<Tuple>> uploadedImages = new HashMap<String, List<Tuple>>();
 
-    public ReportServiceImpl(ReportDAO reportDAO, ReportTypeDAO reportTypeDAO, ReportImageDAO reportImageDAO, ImageService imageService, ModelMapper modelMapper) {
+    public ReportServiceImpl(ReportDAO reportDAO, ReportTypeDAO reportTypeDAO, ReportImageDAO reportImageDAO, ModelMapper modelMapper) {
         this.reportDAO = reportDAO;
         this.reportTypeDAO = reportTypeDAO;
         this.reportImageDAO = reportImageDAO;
-        this.imageService = imageService;
         this.modelMapper = modelMapper;
     }
 
@@ -51,7 +72,7 @@ public class ReportServiceImpl implements ReportService {
         Optional<Report> opt = reportDAO.findById(id);
         if (opt.isPresent()) {
             Report report = opt.get();
-            System.out.println("Changing report "+id+" state to "+approved);
+            System.out.println("Changing report " + id + " state to " + approved);
             report.setApproved(approved);
             reportDAO.saveAndFlush(report);
             return true;
@@ -60,6 +81,16 @@ public class ReportServiceImpl implements ReportService {
 
     public boolean delete(long id) {
         if (reportDAO.findById(id).isPresent()) {
+            Report report = reportDAO.findById(id).get();
+            report.getImages().stream().forEach(i -> {
+                try {
+                    minioClient.removeObject(
+                            RemoveObjectArgs.builder().bucket(BUCKET).object(i.getId() + ".jpg").build());
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
+            reportImageDAO.deleteAllByReportId(id);
             reportDAO.deleteById(id);
             return true;
         } else return false;
@@ -97,10 +128,10 @@ public class ReportServiceImpl implements ReportService {
 
             }
         }
-        if(type!=null)
-            type+="%";
-        if(subtype!=null)
-            subtype="%"+subtype;
+        if (type != null)
+            type += "%";
+        if (subtype != null)
+            subtype = "%" + subtype;
         List<Report> entities = reportDAO.findReportsByApproval(approved, date, type, subtype, address);
         return entities.stream().map(r -> {
             ReportDTO dto = modelMapper.map(r, ReportDTO.class);
@@ -112,7 +143,7 @@ public class ReportServiceImpl implements ReportService {
     }
 
     public Optional<ReportDTO> create(ReportDTO report) {
-        long tempId=report.getId();
+        long tempId = report.getId();
 
         String type = "";
         String subtype = "";
@@ -153,15 +184,27 @@ public class ReportServiceImpl implements ReportService {
                     report.setAddress("???");
                 }
 
-                //fotografije
 
-
-                System.out.println("Report tempId: "+tempId);
+                System.out.println("Report tempId: " + tempId);
 
                 report.setId(-1l);
                 Report entity = modelMapper.map(report, Report.class);
                 Report result = reportDAO.saveAndFlush(entity);
+                ReportInfoDTO reportInfoDTO = modelMapper.map(result, ReportInfoDTO.class);
+                System.out.println(reportInfoDTO.getDate());
 
+                HttpRequest req = HttpRequest.newBuilder()
+                        .uri(URI.create("http://localhost:8080/report_system/anomaly_detection"))
+                        .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(reportInfoDTO)))
+                        .header("Content-Type", "application/json")
+                        .build();
+                try {
+                    HttpResponse<String> rep=httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+                    System.out.println("Request sent");
+                    System.out.println(rep.statusCode());
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
                 synchronized (uploadedImages) {
                     if (uploadedImages.get(Long.toString(tempId)) != null) {
                         System.out.println("Images exist!");
@@ -171,11 +214,25 @@ public class ReportServiceImpl implements ReportService {
                         for (Tuple t : images) {
                             ReportImage reportImage = new ReportImage();
                             reportImage.setReport(result);
-                            System.out.println(t.getId());
                             reportImageDAO.saveAndFlush(reportImage);
+                            String objName = reportImage.getId() + ".jpg";
+                            String path = imagesRepo + File.separator + objName;
+                            File file = new File(path);
+                            try {
+                                try {
+                                    minioClient.putObject(
+                                            PutObjectArgs.builder().bucket(BUCKET).object(objName).stream(
+                                                            new ByteArrayInputStream(t.getData()), t.getData().length, -1)
+                                                    .contentType(CONTENT_TYPE)
+                                                    .build());
+                                    System.out.println("Image uploaded successfully!");
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
 
-                            //prosljedjivanje fotografiej ka min.io
-
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
                         }
                     } else
                         System.out.println("no images");
@@ -188,9 +245,10 @@ public class ReportServiceImpl implements ReportService {
         } else
             return Optional.empty();
     }
-    public List<ReportTypeDTO> getTypes(){
+
+    public List<ReportTypeDTO> getTypes() {
         return reportTypeDAO.findAll().stream().map(rt -> {
-            ReportTypeDTO dto=new ReportTypeDTO();
+            ReportTypeDTO dto = new ReportTypeDTO();
             dto.setName(rt.getName());
             dto.setSubtypes(rt.getSubtypes().stream().map(st -> st.getName()).collect(Collectors.toList()));
             return dto;
@@ -201,7 +259,7 @@ public class ReportServiceImpl implements ReportService {
         try {
             String[] tokens = id.split("--");
             String random = tokens[0];
-            System.out.println("Image tempId: "+random);
+            System.out.println("Image tempId: " + random);
             synchronized (uploadedImages) {
                 if (!uploadedImages.containsKey(random))
                     uploadedImages.put(random, new ArrayList<Tuple>());
@@ -220,7 +278,8 @@ public class ReportServiceImpl implements ReportService {
     public void deleteImage(String id) {
         try {
             String[] tokens = id.split("--");
-            String random = tokens[0];;
+            String random = tokens[0];
+            ;
             synchronized (uploadedImages) {
                 List<Tuple> imgs = uploadedImages.get(random);
                 Tuple toDelete = null;
@@ -233,15 +292,17 @@ public class ReportServiceImpl implements ReportService {
             e.printStackTrace();
         }
     }
-    public byte[] getImageById(long id){
-        try{
-            //minio
-            byte[] result=null;
-            return result;
-        }catch(Exception e){
+
+    public byte[] getImageById(long id) {
+        try (InputStream stream = minioClient.getObject(
+                GetObjectArgs.builder()
+                        .bucket(BUCKET)
+                        .object(id + ".jpg")
+                        .build())) {
+            return stream.readAllBytes();
+        } catch (Exception e) {
             e.printStackTrace();
             return null;
         }
     }
-
 }

@@ -11,9 +11,10 @@ import java.util.List;
 public class Warning {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private long id;
     private String level;
     private Date date;
+    private String ident;
     private double x;
     private double y;
     private double r;
