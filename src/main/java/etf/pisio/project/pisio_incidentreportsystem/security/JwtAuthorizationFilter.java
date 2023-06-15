@@ -31,6 +31,7 @@ public class JwtAuthorizationFilter extends OncePerRequestFilter {
             System.out.println("Token: " + token);
             String email = jwtUtil.getEmailFromToken(token);
             String role = jwtUtil.getRoleFromToken(token);
+            System.out.println(role);
             if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 System.out.println("Email :" + email);
                 UserDetails user = new User(email, role);

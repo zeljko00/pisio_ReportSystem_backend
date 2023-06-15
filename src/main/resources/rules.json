@@ -2,83 +2,57 @@
   "rules": [
     {
       "methods": [
+        "GET"
       ],
-      "pattern": "/events/**",
+      "pattern": "/anomaly_detection",
       "roles": [
-        "CITY_OFFICIAL","CITY_MANAGER"
+        "ADMIN"
       ]
     },
     {
-      "methods": ["GET"
+      "methods": [
+        "POST"
       ],
-      "pattern": "/statistics/**",
+      "pattern": "/stats",
       "roles": [
-        "CITY_MANAGER"
+        "ADMIN"
       ]
-    },
-    {
-      "methods": ["POST"
+    },{
+      "methods": [
+        "GET","POST"
       ],
       "pattern": "/reports",
       "roles": [
-        "CITIZEN","CITY_OFFICIAL","CITY_MANAGER"
+        "CITIZEN","ADMIN"
       ]
     },
     {
-      "methods": ["POST"
+      "methods": [
+        "GET"
       ],
-      "pattern": "/reports/images/upload",
+      "pattern": "/reports/types",
       "roles": [
-        "CITIZEN","CITY_OFFICIAL","CITY_MANAGER"
+        "CITIZEN","ADMIN"
       ]
     },
     {
-      "methods": ["PUT"
+      "methods": [
+        "GET","DELETE","POST"
       ],
-      "pattern": "/reports/feedback/*",
+      "pattern": "/reports/images/**",
       "roles": [
-        "CITY_OFFICIAL"
+        "CITIZEN","ADMIN"
       ]
     },
     {
-      "methods": ["PUT"
+      "methods": [
+        "GET","POST","PUT","DELETE"
       ],
-      "pattern": "/reports/requireInfo/*",
+      "pattern": "/reports/**",
       "roles": [
-        "CITY_OFFICIAL"
-      ]
-    },
-    {
-      "methods": ["PUT"
-      ],
-      "pattern": "/reports/additionalInfo/*",
-      "roles": [
-        "CITIZEN","CITY_OFFICIAL","CITY_MANAGER"
-      ]
-    },
-    {
-      "methods": ["GET"
-      ],
-      "pattern": "/reports/author/*",
-      "roles": [
-        "CITIZEN","CITY_OFFICIAL","CITY_MANAGER"
-      ]
-    },
-    {
-      "methods": ["DELETE"
-      ],
-      "pattern": "/reports/images/*",
-      "roles": [
-        "CITIZEN","CITY_OFFICIAL","CITY_MANAGER"
-      ]
-    },
-    {
-      "methods": ["GET"
-      ],
-      "pattern": "/**",
-      "roles": [
-        "CITY_OFFICIAL"
+        "ADMIN"
       ]
     }
+
   ]
 }

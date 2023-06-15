@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,18 +20,18 @@ import java.util.Optional;
 @RequestMapping("/reports")
 public class ReportController {
     private final ReportService reportService;
-
+    private final Base64.Decoder decoder=Base64.getDecoder();
     public ReportController(ReportService reportService) {
         this.reportService = reportService;
     }
 
     @GetMapping
     ResponseEntity<List<ReportDTO>> getApprovedReports(@PathParam("dateExp") String dateExp, @PathParam("address") String address, @PathParam("type") String type, @PathParam("subtype") String subtype){
-        return new ResponseEntity<>(reportService.find(true,dateExp,type,subtype,address),HttpStatus.OK);
+        return new ResponseEntity<>(reportService.find(true,dateExp!=null?new String(decoder.decode(dateExp)):dateExp,type!=null?new String(decoder.decode(type)):type,subtype!=null?new String(decoder.decode(subtype)):subtype,address!=null?new String(decoder.decode(address)):address),HttpStatus.OK);
     }
     @GetMapping("/queue")
     ResponseEntity<List<ReportDTO>> getReports(@PathParam("approval") Boolean approval,@PathParam("dateExp") String dateExp, @PathParam("address") String address, @PathParam("type") String type, @PathParam("subtype") String subtype){
-        return new ResponseEntity<>(reportService.find(approval,dateExp,type,subtype,address),HttpStatus.OK);
+        return new ResponseEntity<>(reportService.find(approval,dateExp!=null?new String(decoder.decode(dateExp)):dateExp,type!=null?new String(decoder.decode(type)):type,subtype!=null?new String(decoder.decode(subtype)):subtype,address!=null?new String(decoder.decode(address)):address),HttpStatus.OK);
     }
     @GetMapping("/types")
     ResponseEntity<List<ReportTypeDTO>> getReportTypes(){
@@ -56,8 +57,8 @@ public class ReportController {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
     }
     @PostMapping
-    ResponseEntity<ReportDTO> create(@RequestBody ReportDTO report){
-        Optional<ReportDTO> opt=reportService.create(report);
+    ResponseEntity<ReportDTO> create(@RequestBody ReportDTO report,@PathParam("translate") Boolean translate){
+        Optional<ReportDTO> opt=reportService.create(report,translate);
         if(opt.isPresent())
             return new ResponseEntity<>(opt.get(),HttpStatus.OK);
         else

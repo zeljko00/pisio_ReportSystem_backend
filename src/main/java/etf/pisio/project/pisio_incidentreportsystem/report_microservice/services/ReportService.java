@@ -10,7 +10,7 @@ public interface ReportService {
     boolean approval(long id,boolean approval);
     boolean delete(long id);
     List<ReportDTO> find(Boolean approved,String dateExp, String type, String subtype,String address);
-    Optional<ReportDTO> create(ReportDTO report);
+    Optional<ReportDTO> create(ReportDTO report,boolean translate);
     List<ReportTypeDTO> getTypes();
     boolean saveImage(byte[] data, String id);
     void deleteImage(String id);

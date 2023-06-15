@@ -30,7 +30,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.*;
 import java.util.stream.Collectors;
-
+import org.springframework.web.util.UriComponentsBuilder;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 @Service
 @Transactional
 public class ReportServiceImpl implements ReportService {
@@ -39,19 +41,18 @@ public class ReportServiceImpl implements ReportService {
                     .endpoint("http://localhost:9000")
                     .credentials("V6SgTLZ89DgBGh2YYCDT", "b23RAKpvw1iYtXzjFQm4SBCrY4OoQcgZNlla2gCW")
                     .build();
-    private final Gson gson=new GsonBuilder()
-                .setDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'") //
-                .create();
+    private final Gson gson = new GsonBuilder()
+            .setDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'") //
+            .create();
     private final HttpClient httpClient = HttpClient.newBuilder().build();
     private final ReportDAO reportDAO;
     private final ReportTypeDAO reportTypeDAO;
     private final ReportImageDAO reportImageDAO;
     private final ModelMapper modelMapper;
-    @Value("${reports.images.temp.repo}")
-    private String imagesRepo;
+    @Value("service.secretKey")
+    private String secret;
     private static final String BUCKET = "images";
     private static final String CONTENT_TYPE = "image/jpeg";
-
     private final static String subtype_regex = " - ";
     private final static String LAST_DAY = "24h";
     private final static String LAST_WEEK = "7d";
@@ -134,7 +135,11 @@ public class ReportServiceImpl implements ReportService {
             subtype = "%" + subtype;
         List<Report> entities = reportDAO.findReportsByApproval(approved, date, type, subtype, address);
         return entities.stream().map(r -> {
+
             ReportDTO dto = modelMapper.map(r, ReportDTO.class);
+            System.out.println("ENTITY:" +r.getDate());
+            dto.setDate(r.getDate().toString());
+            System.out.println("DTO:" +dto.getDate());
             dto.setImagesIDs(r.getImages().stream().map(i -> {
                 return i.getId();
             }).collect(Collectors.toList()));
@@ -142,9 +147,36 @@ public class ReportServiceImpl implements ReportService {
         }).collect(Collectors.toList());
     }
 
-    public Optional<ReportDTO> create(ReportDTO report) {
+    public Optional<ReportDTO> create(ReportDTO report, boolean translate) {
         long tempId = report.getId();
 
+        if (translate && report.getContent()!=null) {
+
+            String baseUrl = "https://translation.googleapis.com/language/translate/v2";
+            String key = "AIzaSyBIosR75356kWUhE93fX5lrlKOlmFtKT1c";
+            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl)
+                    .queryParam("key",key)
+                    .queryParam("q", URLEncoder.encode(report.getContent(), StandardCharsets.UTF_8))
+                    .queryParam("source", "en")
+                    .queryParam("target", "sr");
+            String encodedUrl = builder.build(true).toUriString();
+            System.out.println(encodedUrl);
+            HttpRequest req2 = HttpRequest.newBuilder()
+                    .uri(URI.create(encodedUrl))
+                    .GET()
+                    .build();
+            try {
+
+                HttpResponse<String> rep2 = httpClient.send(req2, HttpResponse.BodyHandlers.ofString());
+                System.out.println(rep2.body());
+                ObjectMapper objectMapper = new ObjectMapper();
+                JsonNode jsonNode = objectMapper.readTree(rep2.body());
+
+                report.setContent(jsonNode.get("data").get("translations").get(0).get("translatedText").asText());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
         String type = "";
         String subtype = "";
         if (report.getType().contains(subtype_regex)) {
@@ -157,7 +189,6 @@ public class ReportServiceImpl implements ReportService {
         if (opt.isPresent()) {
             ReportType typeEntity = opt.get();
             if (subtype.equals("") || (typeEntity.getSubtypes() != null && typeEntity.getSubtypes().contains(new Subtype(subtype)))) {
-                report.setDate(new Date());
                 report.setApproved(false);
 
                 String request = GEOCODING_SERVICE_REQUEST_TEMPLATE.replace("LAT", Double.toString(report.getX())).replace("LNG", Double.toString(report.getY()));
@@ -189,6 +220,7 @@ public class ReportServiceImpl implements ReportService {
 
                 report.setId(-1l);
                 Report entity = modelMapper.map(report, Report.class);
+                entity.setDate(new Date());
                 Report result = reportDAO.saveAndFlush(entity);
                 ReportInfoDTO reportInfoDTO = modelMapper.map(result, ReportInfoDTO.class);
                 System.out.println(reportInfoDTO.getDate());
@@ -197,14 +229,16 @@ public class ReportServiceImpl implements ReportService {
                         .uri(URI.create("http://localhost:8080/report_system/anomaly_detection"))
                         .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(reportInfoDTO)))
                         .header("Content-Type", "application/json")
+                        .header("Authorization", secret)
                         .build();
                 try {
-                    HttpResponse<String> rep=httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+                    HttpResponse<String> rep = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
                     System.out.println("Request sent");
                     System.out.println(rep.statusCode());
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
+
                 synchronized (uploadedImages) {
                     if (uploadedImages.get(Long.toString(tempId)) != null) {
                         System.out.println("Images exist!");
@@ -216,8 +250,6 @@ public class ReportServiceImpl implements ReportService {
                             reportImage.setReport(result);
                             reportImageDAO.saveAndFlush(reportImage);
                             String objName = reportImage.getId() + ".jpg";
-                            String path = imagesRepo + File.separator + objName;
-                            File file = new File(path);
                             try {
                                 try {
                                     minioClient.putObject(

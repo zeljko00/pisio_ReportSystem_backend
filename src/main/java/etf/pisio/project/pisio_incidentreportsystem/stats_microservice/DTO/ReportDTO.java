@@ -16,5 +16,4 @@ public class ReportDTO {
     private double x;
     private double y;
     private List<Long> imagesIDs;
-    private List<CoordinateDTO> coordinateDTOs;
 }

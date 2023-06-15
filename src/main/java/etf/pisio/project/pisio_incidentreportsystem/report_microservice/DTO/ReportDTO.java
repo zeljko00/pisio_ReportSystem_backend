@@ -8,7 +8,7 @@ import java.util.List;
 public class ReportDTO {
 
     private long id;
-    private Date date;
+    private String date;
     private String content;
     private String type;
     private String address;
